@@ -227,9 +227,46 @@ const PCOLOR=['var(--p0)','var(--p1)','var(--p2)','var(--p3)'];
 const PCLIGHT=['var(--p0l)','var(--p1l)','var(--p2l)','var(--p3l)'];
 const ICONS=['🀇','🀙','🀀','🎴','🃏','🀄','♟️','🎲','🎯','⭐'];
 
-function load(){try{return JSON.parse(localStorage.getItem('mj3'))||def();}catch(e){return def();}}
+// --- 雲端設定開始 ---
+const CLOUD_URL = "https://script.google.com/macros/s/AKfycbyflEO2bLBaSJ7TTTtLnVQWT7FHU7csReb47uk9lAlJ367Svaqws5krRVcOXk2iFVAY2A/exec";
+
+// 舊的 load 改名為本地讀取，並作為預備
+function loadLocal(){try{return JSON.parse(localStorage.getItem('mj3'))||def();}catch(e){return def();}}
 function def(){return{allPlayers:['玩家1','玩家2','玩家3','玩家4'],session:null,history:[]};}
-function save(){localStorage.setItem('mj3',JSON.stringify(data));}
+
+// 升級版的 save：存本地的同時也發送到 Google Sheets
+async function save(){
+  localStorage.setItem('mj3',JSON.stringify(data));
+  try {
+    fetch(CLOUD_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
+  } catch (e) { console.error("同步失敗", e); }
+}
+
+// 新增的雲端同步函數
+async function syncFromCloud() {
+  try {
+    const res = await fetch(CLOUD_URL);
+    const text = await res.text();
+    if (text && text.trim() !== "") {
+      const cloudData = JSON.parse(text);
+      if (JSON.stringify(cloudData) !== JSON.stringify(data)) {
+        data = cloudData;
+        localStorage.setItem('mj3', JSON.stringify(data));
+        // 強制重新渲染所有頁面內容
+        renderInputPage();
+        renderQuickStats();
+        if(typeof renderHistory === 'function') renderHistory();
+      }
+    }
+  } catch (e) { console.warn("同步失敗，使用本地資料"); }
+}
+
+// 每 15 秒檢查一次雲端是否有更新
+setInterval(syncFromCloud, 15000);
+// --- 雲端設定結束 ---
+
+let data=loadLocal(); // 初始先讀取本地
+syncFromCloud();      // 接著立刻嘗試同步雲端最新資料
 
 let data=load();
 let selPlayers=[];
